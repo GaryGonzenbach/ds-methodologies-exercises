@@ -2,6 +2,8 @@
 import pandas as pd
 import numpy as np
 from sklearn.cluster import KMeans
+import scipy.stats as stats
+from scipy.stats import pearsonr
 
 def combine_two_columns(df, newcolumn_name, column1, column2, deleteold = False):
     #   ''' arguments - (dataframe, newcolumn name (str), column1 (str), column2 (str), optional bool to delete the two old columns
@@ -101,7 +103,31 @@ def delete_specific_column(df, column_list):
     for thiscolumn in column_list:
         df.drop([thiscolumn], axis=1, inplace=True)
     return(df)  
-    
+
+def compare_ttests(df,dependentvar,skipcolumns=[]):
+    # '''  arguments  - (dataframe, dependent variable column, columns to skip (list) is optional) 
+    # Purpose is to run Ttests on the dependent variable value of all columns, separated by the mean of each column
+    # Only results where pvalue is less than 0.05 are returned (others are dropped)
+    # returns a dataframe sorted by the coefficient of the ttest for each variable  '''   
+    tcolumns = get_numeric_columns(df, skipcolumns=[])
+    results = []
+    features = []
+    pvalues = []
+    for thiscolumn in tcolumns:
+        if thiscolumn != dependentvar:
+            if thiscolumn != skipcolumns:
+                df1 = df[df[thiscolumn] < df[thiscolumn].mean()]
+                df2 = df[df[thiscolumn] > df[thiscolumn].mean()]        
+                this_tstat, this_pvalue = stats.ttest_ind(df1[dependentvar].dropna(),
+                   df2[dependentvar].dropna())
+                if this_pvalue < .05:
+                    results.append(this_tstat)
+                    features.append(thiscolumn)
+                    pvalues.append(this_pvalue)    
+    list_of_tuples = list(zip(features,results,pvalues))
+    results_df = pd.DataFrame(list_of_tuples, columns = ['Variables','T-Stats','Pvalues'])
+    results_df.sort_values('T-Stats', inplace=True)
+    return results_df    
 
 def create_clusters(df,col_list,n_clusters,nameof_clustercolumn):
     # '''  pass a datframe, list of columns to cluster, and a target number of clusters
