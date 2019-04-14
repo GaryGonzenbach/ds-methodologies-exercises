@@ -3,6 +3,15 @@ import pandas as pd
 import numpy as np
 from sklearn.cluster import KMeans
 
+def combine_two_columns(df, newcolumn_name, column1, column2, deleteold = False):
+    #   ''' arguments - (dataframe, newcolumn name (str), column1 (str), column2 (str), optional bool to delete the two old columns
+    #  '''       
+    df[newcolumn_name] = df[column1] + df[column2]
+    if deleteold == True:
+        df.drop([column1], axis=1, inplace=True)
+        df.drop([column2], axis=1, inplace=True)
+    return df
+
 def get_numeric_columns(df, skipcolumns=[]):
     #   ''' arguments - (dataframe, optional list of strings)
     #   Purpose is to return a list of numeric columns from a dataframe
@@ -16,7 +25,6 @@ def change_numeric_2str(df, columns2change=[]):
     # Purpose is to change a specified set of columns anything to a category (categorical column for plotting)
     # send a list of columns to change from numeric to type category (for creating categorical columns in a dataframe)
     # returns the dataframe with the changed columns '''
-    columns2change = ['fips','regionidcounty','yearbuilt']
     for column in columns2change:
         df[[column]] = df[[column]].astype('str')
 #        df[[column]] = df[[column]].astype('category')
@@ -66,8 +74,8 @@ def replace_nulls(df):
     df.fillna(value=0, inplace=True)
     return df
 
-def delete_missing_bycolumn(df, threshold):
-    # '''  arguments  - (dataframe, fraction from 0-1) 
+def delete_missing_bycolumn(df, threshold, skipcolumns=[] ):
+    # '''  arguments  - (dataframe, fraction from 0-1, columns to skip (list) is optional) 
     # Purpose is to remove columns in a dataframe where the number of  nulls
     # - exceeds the threshold fraction (of total rows) of the dataframe  '''   
     total_rows = len(df)
@@ -75,7 +83,8 @@ def delete_missing_bycolumn(df, threshold):
     column_list = df.columns.tolist()
     for thiscolumn in column_list:
         if null_count[thiscolumn] > (threshold * total_rows):
-            df.drop([thiscolumn], axis=1, inplace=True)
+            if thiscolumn not in skipcolumns:
+                df.drop([thiscolumn], axis=1, inplace=True)
     return(df)  
 
 def remove_outliers(df, method, k, listofcolumns):
@@ -92,6 +101,7 @@ def delete_specific_column(df, column_list):
     for thiscolumn in column_list:
         df.drop([thiscolumn], axis=1, inplace=True)
     return(df)  
+    
 
 def create_clusters(df,col_list,n_clusters,nameof_clustercolumn):
     # '''  pass a datframe, list of columns to cluster, and a target number of clusters
@@ -119,14 +129,19 @@ def create_clusters(df,col_list,n_clusters,nameof_clustercolumn):
 #    the following functions are zillow specific 
 #  
 def manually_remove_outliers_from_zillow(df):
-    keys = ['bathroomcnt','bedroomcnt','calculatedfinishedsquarefeet','structuretaxvaluedollarcnt','landtaxvaluedollarcnt']
-    values = [(1,7), (1,7), (500,8000), (25000,2000000), (10000,2500000)]
+    keys = ['bedroomcnt','calculatedfinishedsquarefeet','structuretaxvaluedollarcnt','landtaxvaluedollarcnt']
+    values = [ (1,7), (500,8000), (25000,2000000), (10000,2500000)]
     dictionary = dict(zip(keys, values))
     for key, value in dictionary.items():         
         df = numeric_filter(df,key,value[0],value[1])
 #        df = df[df[key] >= value[0]]
 #        df = df[df[key] <= value[1]]
     return(df)
+
+def transform_yearbuilt_2age(df):
+    df['age'] = 2017 - df['yearbuilt']
+    df.drop(['yearbuilt'], axis=1, inplace=True)
+    return df
 
 def prepare_zillow_db(df):
     # '''  arguments  - (dataframe)
@@ -136,10 +151,12 @@ def prepare_zillow_db(df):
     text_list = ['single', 'condominium']
     df = matching_strings_inrows(df, 'propertylandusedesc', text_list )
     df = manually_remove_outliers_from_zillow(df)
-    df = delete_specific_column(df, ['roomcnt','taxamount','fullbathcnt'])
-    df = delete_missing_bycolumn(df, 0.2)   
+    df = combine_two_columns(df,'bedbathcnt','bathroomcnt','bedroomcnt',True)
+    df = delete_specific_column(df, ['roomcnt','taxamount','fullbathcnt','finishedsquarefeet12','assessmentyear'])
+    df = delete_missing_bycolumn(df, 0.4, ['yearbuilt'])   
     df = delete_missing_byrow(df, .1, .1, .1)
-    col_list = ['fips','regionidcounty','yearbuilt']
+    col_list = ['fips','regionidcounty']
     df = change_numeric_2str(df, col_list)
+    df = transform_yearbuilt_2age(df)
     df = replace_nulls(df)
     return(df)
