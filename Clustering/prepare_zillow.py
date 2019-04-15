@@ -4,6 +4,12 @@ import numpy as np
 from sklearn.cluster import KMeans
 import scipy.stats as stats
 from scipy.stats import pearsonr
+import statsmodels.api as sm
+from scipy.stats import pearsonr
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error, median_absolute_error
+
 
 def combine_two_columns(df, newcolumn_name, column1, column2, deleteold = False):
     #   ''' arguments - (dataframe, newcolumn name (str), column1 (str), column2 (str), optional bool to delete the two old columns
@@ -21,6 +27,17 @@ def get_numeric_columns(df, skipcolumns=[]):
     column_list = df.select_dtypes(include=[np.number]).columns.tolist()
     numeric_column_list = [x for x in column_list if x not in skipcolumns]
     return(numeric_column_list)
+
+def filter_columns(df,listofcolumns):
+    #   ''' arguments - (dataframe), columns to include in returned dataframe
+    #  ''' 
+    newdf = df.copy()
+    col_list = df.columns 
+    for column in col_list:
+        if column not in listofcolumns:
+            newdf.drop([column], axis=1, inplace=True)
+    return newdf
+
 
 def change_numeric_2str(df, columns2change=[]):
     # ''' arguments  - (dataframe, optional list of strings
@@ -94,7 +111,7 @@ def remove_outliers(df, method, k, listofcolumns):
     return(df)
 
 def numeric_filter(df,column,minvalue,maxvalue):
-    # ''' return the dataframe where the values in the specified column are between the min and the max 
+    # ''' return the rows in the dataframe where the values in the specified column are between the min and the max 
     df = df[df[column] >= minvalue]
     df = df[df[column] <= maxvalue]
     return(df)
@@ -151,6 +168,29 @@ def create_clusters(df,col_list,n_clusters,nameof_clustercolumn):
     return_df = pd.concat([df,cluster_df], axis=1, join_axes=[df.index]) 
     return return_df, return_inertia, return_labels
 
+def regressiontest(df,xfeatures,yfeature,train_size):
+    y = df[yfeature]
+    X = filter_columns(df,xfeatures)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=.80, random_state=123)
+    train = pd.concat([X_train, y_train], axis=1)
+    test = pd.concat([X_test, y_test], axis=1)
+#
+    column_names = X_train.columns
+    r_and_p_values = [pearsonr(X_train[col], y_train) for col in column_names]
+    corrdict = dict(zip(column_names, r_and_p_values))
+#
+    ols_model = sm.OLS(y_train, X_train)
+    fit = ols_model.fit()
+    lm1 = LinearRegression(fit_intercept=False) 
+    lm1.fit(X_train[xfeatures], y_train)
+    LinearRegression(copy_X=True, fit_intercept=False, n_jobs=None,
+         normalize=False)
+    lm1_y_intercept = lm1.intercept_
+    lm1_coefficients = lm1.coef_
+    y_pred_lm1 = lm1.predict(X_train[xfeatures])
+    mse = mean_squared_error(y_train, y_pred_lm1)
+    r2 = r2_score(y_train, y_pred_lm1)
+    return mse, r2, corrdict
 #
 #    the following functions are zillow specific 
 #  
