@@ -1,6 +1,8 @@
 ''' utilities for preparing dataframes'''
 import pandas as pd
 import numpy as np
+from datetime import datetime
+from dateutil import parser
 from sklearn.cluster import KMeans
 import scipy.stats as stats
 from scipy.stats import pearsonr
@@ -10,6 +12,11 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error, median_absolute_error
 
+# '''     column manipulations       '''
+
+def replace_nulls(df):
+    df.fillna(value=0, inplace=True)
+    return df
 
 def combine_two_columns(df, newcolumn_name, column1, column2, deleteold = False):
     #   ''' arguments - (dataframe, newcolumn name (str), column1 (str), column2 (str), optional bool to delete the two old columns
@@ -50,6 +57,28 @@ def change_numeric_2str(df, columns2change=[]):
 #        df[[column]] = df[[column]].add_categories([0])
     return(df)
 
+def delete_missing_bycolumn(df, threshold, skipcolumns=[] ):
+    # '''  arguments  - (dataframe, fraction from 0-1, columns to skip (list) is optional) 
+    # Purpose is to remove columns in a dataframe where the number of  nulls
+    # - exceeds the threshold fraction (of total rows) of the dataframe  '''   
+    total_rows = len(df)
+    null_count = df.isnull().sum()
+    column_list = df.columns.tolist()
+    for thiscolumn in column_list:
+        if null_count[thiscolumn] > (threshold * total_rows):
+            if thiscolumn not in skipcolumns:
+                df.drop([thiscolumn], axis=1, inplace=True)
+    return(df)  
+
+def delete_specific_column(df, column_list):
+    for thiscolumn in column_list:
+        df.drop([thiscolumn], axis=1, inplace=True)
+    return(df)  
+
+
+
+# '''      row manipulations    '''
+
 def matching_strings_inrows(df,col_name,matchstr):
     # '''  arguments  - (dataframe, string, list of strings) 
     # Purpose is to filter out rows of a dataframe where a specific column contains a text string
@@ -89,23 +118,6 @@ def delete_missing_byrow(df, zero_delete, empty_delete, null_delete):
     df.drop(dropcols,axis=1,inplace=True)   
     return(df)
 
-def replace_nulls(df):
-    df.fillna(value=0, inplace=True)
-    return df
-
-def delete_missing_bycolumn(df, threshold, skipcolumns=[] ):
-    # '''  arguments  - (dataframe, fraction from 0-1, columns to skip (list) is optional) 
-    # Purpose is to remove columns in a dataframe where the number of  nulls
-    # - exceeds the threshold fraction (of total rows) of the dataframe  '''   
-    total_rows = len(df)
-    null_count = df.isnull().sum()
-    column_list = df.columns.tolist()
-    for thiscolumn in column_list:
-        if null_count[thiscolumn] > (threshold * total_rows):
-            if thiscolumn not in skipcolumns:
-                df.drop([thiscolumn], axis=1, inplace=True)
-    return(df)  
-
 def remove_outliers(df, method, k, listofcolumns):
     print('This routine is todo')
     return(df)
@@ -116,10 +128,7 @@ def numeric_filter(df,column,minvalue,maxvalue):
     df = df[df[column] <= maxvalue]
     return(df)
 
-def delete_specific_column(df, column_list):
-    for thiscolumn in column_list:
-        df.drop([thiscolumn], axis=1, inplace=True)
-    return(df)  
+
 
 def compare_chitests(df,skipcolumns=[]):
     # '''    ''' 
@@ -133,6 +142,7 @@ def compare_chitests(df,skipcolumns=[]):
     return
 
 
+# '''     Stats utils  '''
 
 def compare_ttests(df,dependentvar,skipcolumns=[]):
     # '''  arguments  - (dataframe, dependent variable column, columns to skip (list) is optional) 
@@ -181,10 +191,10 @@ def create_clusters(df,col_list,n_clusters,nameof_clustercolumn):
     return_df = pd.concat([df,cluster_df], axis=1, join_axes=[df.index]) 
     return return_df, return_inertia, return_labels
 
-def regressiontest(df,xfeatures,yfeature,train_size):
+def regressiontest(df,xfeatures,yfeature,splitfraction):
     y = df[yfeature]
     X = filter_columns(df,xfeatures)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=.80, random_state=123)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=splitfraction, random_state=123)
     train = pd.concat([X_train, y_train], axis=1)
     test = pd.concat([X_test, y_test], axis=1)
 #
@@ -200,42 +210,9 @@ def regressiontest(df,xfeatures,yfeature,train_size):
          normalize=False)
     lm1_y_intercept = lm1.intercept_
     lm1_coefficients = lm1.coef_
+    coeff_list = list(zip(xfeatures,lm1.coef_))
     y_pred_lm1 = lm1.predict(X_train[xfeatures])
     mse = mean_squared_error(y_train, y_pred_lm1)
     r2 = r2_score(y_train, y_pred_lm1)
-    return mse, r2, corrdict
+    return mse, r2, corrdict, coeff_list
 #
-#    the following functions are zillow specific 
-#  
-def manually_remove_outliers_from_zillow(df):
-    keys = ['bedroomcnt','calculatedfinishedsquarefeet','structuretaxvaluedollarcnt','landtaxvaluedollarcnt']
-    values = [ (1,7), (500,8000), (25000,2000000), (10000,2500000)]
-    dictionary = dict(zip(keys, values))
-    for key, value in dictionary.items():         
-        df = numeric_filter(df,key,value[0],value[1])
-#        df = df[df[key] >= value[0]]
-#        df = df[df[key] <= value[1]]
-    return(df)
-
-def transform_yearbuilt_2age(df):
-    df['age'] = 2017 - df['yearbuilt']
-    df.drop(['yearbuilt'], axis=1, inplace=True)
-    return df
-
-def prepare_zillow_db(df):
-    # '''  arguments  - (dataframe)
-    # order is important , for example - 'propertylandusedesc' is an important filter to apply on the database
-    # which could possibly be automatically eliminated with 'delete_missing_by_column', depending on what thresholds are used  
-    # so call it first'''
-    text_list = ['single', 'condominium']
-    df = matching_strings_inrows(df, 'propertylandusedesc', text_list )
-    df = manually_remove_outliers_from_zillow(df)
-    df = combine_two_columns(df,'bedbathcnt','bathroomcnt','bedroomcnt',True)
-    df = delete_specific_column(df, ['roomcnt','taxamount','fullbathcnt','finishedsquarefeet12','assessmentyear'])
-    df = delete_missing_bycolumn(df, 0.4, ['yearbuilt'])   
-    df = delete_missing_byrow(df, .1, .1, .1)
-    col_list = ['fips','regionidcounty']
-    df = change_numeric_2str(df, col_list)
-    df = transform_yearbuilt_2age(df)
-    df = replace_nulls(df)
-    return(df)
