@@ -25,9 +25,10 @@ def tokenize(input_str):
     return return_str
 
 def stem(input_str):
-    #''' returns a string, stems the input string and returns as a string'''
+    #''' input a string, returns a list, stems the input string and returns as a list'''
     ps = nltk.stem.PorterStemmer()
-    return_str = [ps.stem(word) for word in input_str.split()]
+    stem_list = [ps.stem(word) for word in input_str.split()]
+    return_str = ' '.join(stem_list)
     return return_str
 
 def lemmatize(input_str):
@@ -37,3 +38,52 @@ def lemmatize(input_str):
     lemmatized_words = [wnl.lemmatize(word) for word in input_list]
     return_str = ' '.join(lemmatized_words)
     return return_str
+
+def remove_stopwords(input_str, add_stopwords=[], exclude_stopwords=[]):
+    #''' returns a string, optionally add a list of words to the stopword list
+    #  , also optionally add a list of words to exclude from stopwords 
+    stopwords = nltk.corpus.stopwords.words('english')
+    if len(add_stopwords) > 0:
+        stopwords.extend(add_stopwords)        
+    if len(exclude_stopwords) > 0:
+        final_stop_words = [word for word in stopwords if word not in exclude_stopwords]   
+    else:
+        final_stop_words = stopwords
+    stopwords = final_stop_words
+    input_list = input_str.split()
+    without_stopwords = [word for word in input_list if word not in stopwords]        
+    return_str = ' '.join(without_stopwords)        
+    return return_str
+
+def pull_article_asdict(df,rownum):
+    #''' pass a dataframe and row, pull an article and title from the articles dataframe
+    #    return it as a dictionary'''
+    article = df.at[rownum,'contents']
+    title = df.at[rownum,'title']
+    article_dict = {'title' : title, 'contents' : article}
+    print(article_dict)
+    return article_dict
+
+def prep_article(article_dict):
+    #''' pass it a dictionary, pulls out the contents text, and returns a dictionary  with text 
+    # . that has been stemmed, lemmatized, and cleaned ''''''
+    title = article_dict['title']
+    original_text = article_dict['contents']
+    stemmed_text = stem(original_text)
+    lemmatized_text = lemmatize(original_text)
+    cleaned_text = remove_stopwords(basic_clean(original_text))
+    return_dict = {'title' : title, 'original' : original_text, 'stemmed' : stemmed_text, 'lemmatized' : lemmatized_text, 'clean' : cleaned_text}
+    return return_dict
+
+def prepare_article_data(df):
+    #''' pass a dataframe
+    #    returns a list of dictionary'''
+    cleaned_dicts = []
+    for x in range(len(df)):
+        rownum = x - 1
+        contents = df.at[x,'contents']
+        title = df.at[x,'title']
+        article_dict = {'title' : title, 'contents' : contents}
+        cleaned_dict = prep_article(article_dict)
+        cleaned_dicts.append(cleaned_dict)
+    return cleaned_dicts

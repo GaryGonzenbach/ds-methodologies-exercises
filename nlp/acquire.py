@@ -14,7 +14,6 @@ def make_soup(url,class_str):
     return article_dict
 
 
-
 def get_Codeup_blog_articles(class_str = 'mk-single-content'):
     list_of_dicts = []
     list_of_urls = ['https://codeup.com/codeups-data-science-career-accelerator-is-here/',\
