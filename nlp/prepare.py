@@ -61,7 +61,6 @@ def pull_article_asdict(df,rownum):
     article = df.at[rownum,'contents']
     title = df.at[rownum,'title']
     article_dict = {'title' : title, 'contents' : article}
-    print(article_dict)
     return article_dict
 
 def prep_article(article_dict):
@@ -71,7 +70,7 @@ def prep_article(article_dict):
     original_text = article_dict['contents']
     stemmed_text = stem(original_text)
     lemmatized_text = lemmatize(original_text)
-    cleaned_text = remove_stopwords(basic_clean(original_text))
+    cleaned_text = remove_stopwords(basic_clean(lemmatized_text))
     return_dict = {'title' : title, 'original' : original_text, 'stemmed' : stemmed_text, 'lemmatized' : lemmatized_text, 'clean' : cleaned_text}
     return return_dict
 
@@ -87,3 +86,12 @@ def prepare_article_data(df):
         cleaned_dict = prep_article(article_dict)
         cleaned_dicts.append(cleaned_dict)
     return cleaned_dicts
+
+def clean(text):
+   return remove_stopwords(lemmatize(basic_clean(text)))
+
+def pull_article_astext(df,rownum):
+    #''' pass a dataframe and row, pull an article and title from the articles dataframe
+    #    return it as a dictionary'''
+    article = df.at[rownum,'cleaned_text']
+    return article
